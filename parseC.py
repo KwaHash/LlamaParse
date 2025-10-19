@@ -54,47 +54,44 @@ PDF内の「正式な注文表」に含まれるすべての行を抽出して�
 
 
 	start_time = time.time()
-	result = await LlamaParse(
+	parsing_files = ["img-01.pdf", "img-03.pdf"]
+	results = await LlamaParse(
 		parse_mode="parse_page_with_agent",
-		target_pages="0, 3, 2, 15",
+		target_pages="0,2,3,15",
 		model="openai-gpt-4-1-mini",
 		high_res_ocr=True,
 		adaptive_long_table=True,
 		result_type="markdown",
 		language="ja",
+		# num_workers=4,
+		# partition_pages=20,
 		user_prompt=prompt,
-	).aparse("img-01.pdf")
+	).aparse(parsing_files)
 
-	documents = result.get_markdown_documents(split_by_page=True)
+	documents = [res.get_markdown_documents(split_by_page=True) for res in results]
+	processed_answers = []
+	for document in documents:
+		for doc in document:
+			text = doc.text.strip()
+			if text.startswith("[") and text.endswith("]"):
+				try:
+					processed_answers += json.loads(text)
+				except Exception as e:
+					print("JSON error:", e)
 
+	with open("parseC.json", "w", encoding="utf-8") as f:
+		json.dump(processed_answers, f, ensure_ascii=False, indent=2)
+	
 	parsed_time = time.time()
 	print(f"Parsed time: {parsed_time - start_time:.2f} seconds")
-
-	try:
-		with open("parseC.json", "w", encoding="utf-8") as f:
-			text = "".join(doc.text for doc in documents)
-			print(text, file=f)
-	except Exception as e:
-		print(f"Error writing text.json: {e}")
-
-	# processed_answers = []
-	# for i, doc in enumerate(result):
-	# 	text = doc.text.strip()
-	# 	if text.startswith("[") and text.endswith("]"):
-	# 		try:
-	# 			answer = json.loads(text)
-	# 			if len(answer) > 0:
-	# 				processed_answers.extend(answer)
-	# 		except json.JSONDecodeError as e:
-	# 			print(f"JSON decode error on page {i}: {e}")
-	# 		except Exception as e:
-	# 			print(f"Unexpected error parsing JSON on page {i}: {e}")
-
+	
 	# try:
 	# 	with open("parseC.json", "w", encoding="utf-8") as f:
-	# 		json.dump(processed_answers, f, ensure_ascii=False, indent=2)
+	# 		for document in documents:
+	# 			text = "".join(doc.text for doc in document)
+	# 			print(text, file=f)
 	# except Exception as e:
-	# 	print(f"Error writing parseC.json: {e}")
+	# 	print(f"Error writing text.json: {e}")
 
 if __name__ == "__main__":
     asyncio.run(main())
